@@ -39,7 +39,6 @@ v_suitable_disks=()
 # Constants
 c_deb_packages_repo=https://deb.debian.org/debian
 c_deb_security_repo=https://deb.debian.org/debian-security
-c_deb_codebane=bookworm
 
 c_default_zfs_arc_max_mb=2048
 c_default_swap_gb=8
@@ -491,9 +490,18 @@ determine_kernel_variant
 clear
 
 echo "======= installing zfs on rescue system =========="
+
   echo "zfs-dkms zfs-dkms/note-incompatible-licenses note true" | debconf-set-selections
+#  echo "y" | zfs
+# linux-headers-generic linux-image-generic
+  apt install --yes software-properties-common dpkg-dev dkms
+  cat > /etc/apt/sources.list.d/bookworm-backports.list << EOF
+  deb http://deb.debian.org/debian bookworm-backports main contrib
+  deb-src http://deb.debian.org/debian bookworm-backports main contrib
+EOF
+
   apt update
-  apt install --yes zfs-dkms zfsutils-linux
+  apt install --yes -t stable-backports zfs-dkms zfsutils-linux
   zfs --version
 
 echo "======= partitioning the disk =========="
@@ -591,7 +599,7 @@ if [[ $v_swap_size -gt 0 ]]; then
 fi
 
 echo "======= setting up initial system packages =========="
-debootstrap --arch=amd64 "$c_deb_codename" "$c_zfs_mount_dir" "$c_deb_packages_repo"
+debootstrap --arch=amd64 bookworm "$c_zfs_mount_dir" "$c_deb_packages_repo"
 
 zfs set devices=off "$v_rpool_name"
 
@@ -632,10 +640,10 @@ done
 
 echo "======= setting apt repos =========="
 cat > "$c_zfs_mount_dir/etc/apt/sources.list" <<CONF
-deb $c_deb_packages_repo "$c_deb_codename" main contrib non-free non-free-firmware
-deb $c_deb_packages_repo "$c_deb_codename"-updates main contrib non-free non-free-firmware
-deb $c_deb_security_repo "$c_deb_codename"-security main contrib non-free non-free-firmware
-deb $c_deb_packages_repo "$c_deb_codename"-backports main contrib non-free non-free-firmware
+deb $c_deb_packages_repo bookworm main contrib non-free non-free-firmware
+deb $c_deb_packages_repo bookworm-updates main contrib non-free non-free-firmware
+deb $c_deb_security_repo bookworm-security main contrib non-free non-free-firmware
+deb $c_deb_packages_repo bookworm-backports main contrib non-free non-free-firmware
 CONF
 
 chroot_execute "apt update"
