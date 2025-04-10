@@ -39,6 +39,7 @@ v_suitable_disks=()
 # Constants
 c_deb_packages_repo=https://deb.debian.org/debian
 c_deb_security_repo=https://deb.debian.org/debian-security
+c_deb_codebane=bookworm
 
 c_default_zfs_arc_max_mb=2048
 c_default_swap_gb=8
@@ -66,7 +67,7 @@ function print_step_info_header {
 # ${FUNCNAME[1]}"
 
   if [[ "${1:-}" != "" ]]; then
-    echo -n " $1" 
+    echo -n " $1"
   fi
 
 
@@ -108,7 +109,7 @@ function display_intro_banner {
   print_step_info_header
 
   local dialog_message='Hello!
-This script will prepare the ZFS pools, then install and configure minimal Debian 11 with ZFS root on Hetzner hosting VPS instance
+This script will prepare the ZFS pools, then install and configure minimal Debian 12 with ZFS root on Hetzner hosting VPS instance
 The script with minimal changes may be used on any other hosting provider  supporting KVM virtualization and offering Debian-based rescue system.
 In order to stop the procedure, hit Esc twice during dialogs (excluding yes/no ones), or Ctrl+C while any operation is running.
 '
@@ -147,7 +148,7 @@ function initial_load_debian_zed_cache {
 
   local success=0
 
-  if [[ ! -e "$c_zfs_mount_dir/etc/zfs/zfs-list.cache/$v_rpool_name" ]] || [[ -e "$c_zfs_mount_dir/etc/zfs/zfs-list.cache/$v_rpool_name" && (( $(find "$c_zfs_mount_dir/etc/zfs/zfs-list.cache/$v_rpool_name" -type f -printf '%s' 2> /dev/null) == 0 )) ]]; then  
+  if [[ ! -e "$c_zfs_mount_dir/etc/zfs/zfs-list.cache/$v_rpool_name" ]] || [[ -e "$c_zfs_mount_dir/etc/zfs/zfs-list.cache/$v_rpool_name" && (( $(find "$c_zfs_mount_dir/etc/zfs/zfs-list.cache/$v_rpool_name" -type f -printf '%s' 2> /dev/null) == 0 )) ]]; then
     chroot_execute "zfs set canmount=noauto $v_rpool_name"
 
     SECONDS=0
@@ -437,7 +438,7 @@ function unmount_and_export_fs {
   zpools_exported=99
   echo "===========exporting zfs pools============="
   set +e
-  while (( zpools_exported == 99 )) && (( SECONDS++ <= 60 )); do    
+  while (( zpools_exported == 99 )) && (( SECONDS++ <= 60 )); do
     if zpool export -a 2> /dev/null; then
       zpools_exported=1
       echo "all zfs pools were succesfully exported"
@@ -489,36 +490,10 @@ determine_kernel_variant
 
 clear
 
-echo "===========remove unused kernels in rescue system========="
-for kver in $(find /lib/modules/* -maxdepth 0 -type d | grep -v "$(uname -r)" | cut -s -d "/" -f 4); do
-  apt purge --yes "linux-headers-$kver" || true
-  apt purge --yes "linux-image-$kver" || true
-done
-
 echo "======= installing zfs on rescue system =========="
 
-  echo "zfs-dkms zfs-dkms/note-incompatible-licenses note true" | debconf-set-selections  
-#  echo "y" | zfs
-# linux-headers-generic linux-image-generic
-  apt install --yes software-properties-common dpkg-dev dkms
-  rm -f "$(which zfs)"
-  rm -f "$(which zpool)"
-  cat > /etc/apt/sources.list.d/bookworm-backports.list << EOF
-  deb http://deb.debian.org/debian bookworm-backports main contrib
-  deb-src http://deb.debian.org/debian bookworm-backports main contrib
-EOF
-
-  cat > /etc/apt/preferences.d/90_zfs << EOF
-  Package: src:zfs-linux
-  Pin: release n=bookworm-backports
-  Pin-Priority: 990
-EOF
-
-  apt update  
-  apt install --yes zfs-dkms zfsutils-linux
-  rm /etc/apt/preferences.d/90_zfs
   apt update
-  export PATH=$PATH:/usr/sbin
+  apt install --yes zfs-dkms zfsutils-linux
   zfs --version
 
 echo "======= partitioning the disk =========="
@@ -531,9 +506,9 @@ echo "======= partitioning the disk =========="
 
   for selected_disk in "${v_selected_disks[@]}"; do
     wipefs --all --force "$selected_disk"
-    sgdisk -a1 -n1:24K:+1000K            -t1:EF02 "$selected_disk"
-    sgdisk -n2:0:+2G                   -t2:BF01 "$selected_disk" # Boot pool
-    sgdisk -n3:0:"$tail_space_parameter" -t3:BF01 "$selected_disk" # Root pool
+    sgdisk -a1 -n1:24K:+1M                    -t1:EF02 "$selected_disk" # BIOS
+    sgdisk     -n2:0:+2G                      -t2:8300 "$selected_disk" # Boot pool
+    sgdisk     -n3:0:"$tail_space_parameter"  -t3:8300 "$selected_disk" # Root pool
   done
 
   udevadm settle
@@ -555,7 +530,7 @@ echo "======= create zfs pools and datasets =========="
 
   pools_mirror_option=
   if [[ ${#v_selected_disks[@]} -gt 1 ]]; then
-    if dialog --defaultno --yesno "Do you want to use mirror mode for ${v_selected_disks[*]}?" 30 100; then 
+    if dialog --defaultno --yesno "Do you want to use mirror mode for ${v_selected_disks[*]}?" 30 100; then
       pools_mirror_option=mirror
     fi
   fi
@@ -616,7 +591,7 @@ if [[ $v_swap_size -gt 0 ]]; then
 fi
 
 echo "======= setting up initial system packages =========="
-debootstrap --arch=amd64 bookworm "$c_zfs_mount_dir" "$c_deb_packages_repo"
+debootstrap --arch=amd64 "$c_deb_codename" "$c_zfs_mount_dir" "$c_deb_packages_repo"
 
 zfs set devices=off "$v_rpool_name"
 
@@ -657,10 +632,10 @@ done
 
 echo "======= setting apt repos =========="
 cat > "$c_zfs_mount_dir/etc/apt/sources.list" <<CONF
-deb $c_deb_packages_repo bookworm main contrib non-free non-free-firmware
-deb $c_deb_packages_repo bookworm-updates main contrib non-free non-free-firmware
-deb $c_deb_security_repo bookworm-security main contrib non-free non-free-firmware
-deb $c_deb_packages_repo bookworm-backports main contrib non-free non-free-firmware
+deb $c_deb_packages_repo "$c_deb_codename" main contrib non-free non-free-firmware
+deb $c_deb_packages_repo "$c_deb_codename"-updates main contrib non-free non-free-firmware
+deb $c_deb_security_repo "$c_deb_codename"-security main contrib non-free non-free-firmware
+deb $c_deb_packages_repo "$c_deb_codename"-backports main contrib non-free non-free-firmware
 CONF
 
 chroot_execute "apt update"
@@ -781,7 +756,7 @@ if [[ $v_encrypt_rpool == "1" ]]; then
   echo "=========set up dropbear=============="
 
   chroot_execute "apt install --yes dropbear-initramfs"
-  
+
   mkdir -p "$c_zfs_mount_dir/etc/dropbear/initramfs"
   cp /root/.ssh/authorized_keys "$c_zfs_mount_dir/etc/dropbear/initramfs/authorized_keys"
 

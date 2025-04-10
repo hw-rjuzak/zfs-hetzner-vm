@@ -39,8 +39,10 @@ v_suitable_disks=()
 # Constants
 c_deb_packages_repo=https://mirror.hetzner.com/debian/packages
 c_deb_security_repo=https://mirror.hetzner.com/debian/security
+c_deb_codebane=bullseye
 
-c_default_zfs_arc_max_mb=250
+c_default_zfs_arc_max_mb=2048
+c_default_swap_gb=8
 c_default_bpool_tweaks="-o ashift=12 -O compression=lz4"
 c_default_rpool_tweaks="-o ashift=12 -O acltype=posixacl -O compression=zstd-9 -O dnodesize=auto -O relatime=on -O xattr=sa -O normalization=formD"
 c_default_hostname=terem
@@ -240,7 +242,7 @@ function select_disks {
       menu_entries_option+=("$disk_id" "($block_device_basename)" "$disk_selection_status")
     done
 
-    local dialog_message="Select the ZFS devices (multiple selections will be in mirror).
+    local dialog_message="Select the ZFS devices (multiple selections can be in mirror or strip).
 
 Devices with mounted partitions, cdroms, and removable devices are not displayed!
 "
@@ -261,7 +263,7 @@ function ask_swap_size {
   local swap_size_invalid_message=
 
   while [[ ! $v_swap_size =~ ^[0-9]+$ ]]; do
-    v_swap_size=$(dialog --inputbox "${swap_size_invalid_message}Enter the swap size in GiB (0 for no swap):" 30 100 2 3>&1 1>&2 2>&3)
+    v_swap_size=$(dialog --inputbox "${swap_size_invalid_message}Enter the swap size in GiB (0 for no swap):" 30 100 "$c_default_swap_gb" 3>&1 1>&2 2>&3)
 
     swap_size_invalid_message="Invalid swap size! "
   done
@@ -490,22 +492,31 @@ clear
 
 echo "===========remove unused kernels in rescue system========="
 for kver in $(find /lib/modules/* -maxdepth 0 -type d | grep -v "$(uname -r)" | cut -s -d "/" -f 4); do
-  apt purge --yes "linux-headers-$kver"
-  apt purge --yes "linux-image-$kver"
+  apt purge --yes "linux-headers-$kver" || true
+  apt purge --yes "linux-image-$kver" || true
 done
 
 echo "======= installing zfs on rescue system =========="
-  echo "zfs-dkms zfs-dkms/note-incompatible-licenses note true" | debconf-set-selections  
+
+  echo "zfs-dkms zfs-dkms/note-incompatible-licenses note true" | debconf-set-selections
 #  echo "y" | zfs
 # linux-headers-generic linux-image-generic
   apt install --yes software-properties-common dpkg-dev dkms
   rm -f "$(which zfs)"
   rm -f "$(which zpool)"
-  echo -e "deb http://deb.debian.org/debian/ testing main contrib non-free\ndeb http://deb.debian.org/debian/ testing main contrib non-free\n" >/etc/apt/sources.list.d/bookworm-testing.list
-  echo -e "Package: src:zfs-linux\nPin: release n=testing\nPin-Priority: 990\n" > /etc/apt/preferences.d/90_zfs
-  apt update  
-  apt install -t testing --yes zfs-dkms zfsutils-linux
-  rm /etc/apt/sources.list.d/bookworm-testing.list
+  cat > /etc/apt/sources.list.d/"$c_deb_codename"-backports.list << EOF
+  deb http://deb.debian.org/debian "$c_deb_codename"-backports main contrib
+  deb-src http://deb.debian.org/debian "$c_deb_codename"-backports main contrib
+EOF
+
+  cat > /etc/apt/preferences.d/90_zfs << EOF
+  Package: src:zfs-linux
+  Pin: release n="$c_deb_codename"-backports
+  Pin-Priority: 990
+EOF
+
+  apt update
+  apt install --yes zfs-dkms zfsutils-linux
   rm /etc/apt/preferences.d/90_zfs
   apt update
   export PATH=$PATH:/usr/sbin
@@ -543,10 +554,11 @@ echo "======= create zfs pools and datasets =========="
     bpool_disks_partitions+=("${selected_disk}-part2")
   done
 
+  pools_mirror_option=
   if [[ ${#v_selected_disks[@]} -gt 1 ]]; then
+    if dialog --defaultno --yesno "Do you want to use mirror mode for ${v_selected_disks[*]}?" 30 100; then
     pools_mirror_option=mirror
-  else
-    pools_mirror_option=
+    fi
   fi
 
 # shellcheck disable=SC2086
@@ -574,6 +586,7 @@ zfs create -o canmount=noauto -o mountpoint=/boot "$v_bpool_name/BOOT/debian"
 zfs mount "$v_bpool_name/BOOT/debian"
 
 zfs create                                 "$v_rpool_name/home"
+#zfs create -o mountpoint=/root             "$v_rpool_name/home/root"
 zfs create -o canmount=off                 "$v_rpool_name/var"
 zfs create                                 "$v_rpool_name/var/log"
 zfs create                                 "$v_rpool_name/var/spool"
@@ -604,7 +617,7 @@ if [[ $v_swap_size -gt 0 ]]; then
 fi
 
 echo "======= setting up initial system packages =========="
-debootstrap --arch=amd64 bullseye "$c_zfs_mount_dir" "$c_deb_packages_repo"
+debootstrap --arch=amd64 "$c_deb_codename" "$c_zfs_mount_dir" "$c_deb_packages_repo"
 
 zfs set devices=off "$v_rpool_name"
 
@@ -627,7 +640,7 @@ CONF
 
 ip6addr_prefix=$(ip -6 a s | grep -E "inet6.+global" | sed -nE 's/.+inet6\s(([0-9a-z]{1,4}:){4,4}).+/\1/p' | head -n 1)
 
-cat <<CONF > /mnt/etc/systemd/network/10-eth0.network
+cat <<CONF > "$c_zfs_mount_dir/etc/systemd/network/10-eth0.network"
 [Match]
 Name=eth0
 
@@ -648,10 +661,10 @@ done
 
 echo "======= setting apt repos =========="
 cat > "$c_zfs_mount_dir/etc/apt/sources.list" <<CONF
-deb $c_deb_packages_repo bullseye main contrib non-free
-deb $c_deb_packages_repo bullseye-updates main contrib non-free
-deb $c_deb_security_repo bullseye-security main contrib non-free
-deb $c_deb_packages_repo bullseye-backports main contrib non-free
+deb $c_deb_packages_repo "$c_deb_codename" main contrib non-free non-free-firmware
+deb $c_deb_packages_repo "$c_deb_codename"-updates main contrib non-free non-free-firmware
+deb $c_deb_security_repo "$c_deb_codename"-security main contrib non-free non-free-firmware
+deb $c_deb_packages_repo "$c_deb_codename"-backports main contrib non-free non-free-firmware
 CONF
 
 chroot_execute "apt update"
@@ -659,9 +672,6 @@ chroot_execute "apt update"
 echo "======= setting locale, console and language =========="
 chroot_execute "apt install --yes -qq locales debconf-i18n apt-utils"
 sed -i 's/# en_US.UTF-8/en_US.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
-sed -i 's/# fr_FR.UTF-8/fr_FR.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
-sed -i 's/# fr_FR.UTF-8/fr_FR.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
-sed -i 's/# de_AT.UTF-8/de_AT.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
 sed -i 's/# de_DE.UTF-8/de_DE.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
 
 chroot_execute 'cat <<CONF | debconf-set-selections
@@ -705,10 +715,11 @@ chroot_execute "dpkg-reconfigure console-setup -f noninteractive"
 chroot_execute "setupcon"
 
 chroot_execute "rm -f /etc/localtime /etc/timezone"
-chroot_execute "dpkg-reconfigure tzdata -f noninteractive "
+chroot_execute "dpkg-reconfigure tzdata -f noninteractive"
 
 echo "======= installing latest kernel============="
-chroot_execute "apt install --yes linux-image${v_kernel_variant}-amd64 linux-headers${v_kernel_variant}-amd64"
+# linux-headers-generic linux-image-generic
+chroot_execute "apt install --yes linux-image${v_kernel_variant}-amd64 linux-headers${v_kernel_variant}-amd64 dpkg-dev"
 
 echo "======= installing aux packages =========="
 chroot_execute "apt install --yes man wget curl software-properties-common nano htop gnupg"
@@ -735,8 +746,6 @@ echo "======= installing OpenSSH and network tooling =========="
 chroot_execute "apt install --yes openssh-server net-tools"
 
 echo "======= setup OpenSSH  =========="
-mkdir -p "$c_zfs_mount_dir/root/.ssh/"
-cp /root/.ssh/authorized_keys "$c_zfs_mount_dir/root/.ssh/authorized_keys"
 sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/g' "$c_zfs_mount_dir/etc/ssh/sshd_config"
 sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/g' "$c_zfs_mount_dir/etc/ssh/sshd_config"
 chroot_execute "rm /etc/ssh/ssh_host_*"
@@ -747,7 +756,7 @@ chroot_execute "echo root:$(printf "%q" "$v_root_password") | chpasswd"
 
 echo "======= setting up zfs cache =========="
 
-cp /etc/zpool.cache /mnt/etc/zfs/zpool.cache
+cp /etc/zpool.cache "$c_zfs_mount_dir/etc/zfs/zpool.cache"
 
 echo "========setting up zfs module parameters========"
 chroot_execute "echo options zfs zfs_arc_max=$((v_zfs_arc_max_mb * 1024 * 1024)) >> /etc/modprobe.d/zfs.conf"
@@ -802,7 +811,11 @@ export LS_OPTIONS='--color=auto -h'
 eval "\$(dircolors)"
 CONF
 
-echo "========running packages upgrade==========="
+echo "========= add root pubkey for login via SSH"
+mkdir -p "$c_zfs_mount_dir/root/.ssh/"
+cp /root/.ssh/authorized_keys "$c_zfs_mount_dir/root/.ssh/authorized_keys"
+
+echo "========running packages upgrade and autoremove==========="
 chroot_execute "apt upgrade --yes"
 chroot_execute "apt purge cryptsetup* --yes"
 
@@ -838,6 +851,8 @@ chmod 755 "$c_zfs_mount_dir/etc/network/interfaces"
 
 echo "======= update initramfs =========="
 chroot_execute "update-initramfs -u -k all"
+
+chroot_execute "apt remove cryptsetup* --yes"
 
 echo "======= update grub =========="
 chroot_execute "update-grub"
