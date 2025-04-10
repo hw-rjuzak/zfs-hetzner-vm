@@ -12,34 +12,10 @@ __WARNING:__ all data on the disk will be destroyed.
 * Click "enable rescue and power cycle",  add SSH key to the rescue console, set it OS to linux64, then press mount rescue and power cycle" button.
 * connect via SSH to rescue console, and run the script from this repo.
 
-Debian 10 minimal setup with SSH server
-
-````bash
-wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-debian10-zfs-setup.sh | bash -
-````
-
-Debian 11 minimal setup with SSH server
-
-````bash
-wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-debian11-zfs-setup.sh | bash -
-````
-
 Debian 12 minimal setup with SSH server
 
 ````bash
 wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-debian12-zfs-setup.sh | bash -
-````
-
-Ubuntu 18.04 LTS minimal setup with SSH server
-
-````bash
-wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-ubuntu18-zfs-setup.sh | bash -
-````
-
-Ubuntu 20 LTS minimal setup with SSH server
-
-````bash
-wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-ubuntu20-zfs-setup.sh | bash -
 ````
 
 Ubuntu 22 LTS minimal setup with SSH server
