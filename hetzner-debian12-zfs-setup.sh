@@ -2,7 +2,7 @@
 
 : <<'end_header_info'
 (c) Andrey Prokopenko job@terem.fr
-fully automatic script to install Debian 11 with ZFS root on Hetzner VPS
+fully automatic script to install Debian 12 with ZFS root on Hetzner VPS
 WARNING: all data on the disk will be destroyed
 How to use: add SSH key to the rescue console, set it OS to linux64, then press "mount rescue and power cycle" button
 Next, connect via SSH to console, and run the script
@@ -40,7 +40,8 @@ v_suitable_disks=()
 c_deb_packages_repo=https://deb.debian.org/debian
 c_deb_security_repo=https://deb.debian.org/debian-security
 
-c_default_zfs_arc_max_mb=250
+c_default_zfs_arc_max_mb=2048
+c_default_swap_gb=8
 c_default_bpool_tweaks="-o ashift=12 -O compression=lz4"
 c_default_rpool_tweaks="-o ashift=12 -O acltype=posixacl -O compression=zstd-9 -O dnodesize=auto -O relatime=on -O xattr=sa -O normalization=formD"
 c_default_hostname=terem
@@ -261,7 +262,7 @@ function ask_swap_size {
   local swap_size_invalid_message=
 
   while [[ ! $v_swap_size =~ ^[0-9]+$ ]]; do
-    v_swap_size=$(dialog --inputbox "${swap_size_invalid_message}Enter the swap size in GiB (0 for no swap):" 30 100 2 3>&1 1>&2 2>&3)
+    v_swap_size=$(dialog --inputbox "${swap_size_invalid_message}Enter the swap size in GiB (0 for no swap):" 30 100 "$c_default_swap_gb" 3>&1 1>&2 2>&3)
 
     swap_size_invalid_message="Invalid swap size! "
   done
@@ -490,8 +491,8 @@ clear
 
 echo "===========remove unused kernels in rescue system========="
 for kver in $(find /lib/modules/* -maxdepth 0 -type d | grep -v "$(uname -r)" | cut -s -d "/" -f 4); do
-  apt purge --yes "linux-headers-$kver"
-  apt purge --yes "linux-image-$kver"
+  apt purge --yes "linux-headers-$kver" || true
+  apt purge --yes "linux-image-$kver" || true
 done
 
 echo "======= installing zfs on rescue system =========="
@@ -502,11 +503,19 @@ echo "======= installing zfs on rescue system =========="
   apt install --yes software-properties-common dpkg-dev dkms
   rm -f "$(which zfs)"
   rm -f "$(which zpool)"
-  echo -e "deb http://deb.debian.org/debian/ testing main contrib non-free\ndeb http://deb.debian.org/debian/ testing main contrib non-free\n" >/etc/apt/sources.list.d/bookworm-testing.list
-  echo -e "Package: src:zfs-linux\nPin: release n=testing\nPin-Priority: 990\n" > /etc/apt/preferences.d/90_zfs
+  cat > /etc/apt/sources.list.d/bookworm-backports.list << EOF
+  deb http://deb.debian.org/debian bookworm-backports main contrib
+  deb-src http://deb.debian.org/debian bookworm-backports main contrib
+EOF
+
+  cat > /etc/apt/preferences.d/90_zfs << EOF
+  Package: src:zfs-linux
+  Pin: release n=bookworm-backports
+  Pin-Priority: 990
+EOF
+
   apt update  
-  apt install -t testing --yes zfs-dkms zfsutils-linux
-  rm /etc/apt/sources.list.d/bookworm-testing.list
+  apt install --yes zfs-dkms zfsutils-linux
   rm /etc/apt/preferences.d/90_zfs
   apt update
   export PATH=$PATH:/usr/sbin
@@ -659,9 +668,6 @@ chroot_execute "apt update"
 echo "======= setting locale, console and language =========="
 chroot_execute "apt install --yes -qq locales debconf-i18n apt-utils"
 sed -i 's/# en_US.UTF-8/en_US.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
-sed -i 's/# fr_FR.UTF-8/fr_FR.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
-sed -i 's/# fr_FR.UTF-8/fr_FR.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
-sed -i 's/# de_AT.UTF-8/de_AT.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
 sed -i 's/# de_DE.UTF-8/de_DE.UTF-8/' "$c_zfs_mount_dir/etc/locale.gen"
 
 chroot_execute 'cat <<CONF | debconf-set-selections
