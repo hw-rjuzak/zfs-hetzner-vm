@@ -1,6 +1,6 @@
 # zfs-hetzner-vm
 
-[![shellcheck](https://github.com/terem42/zfs-hetzner-vm/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/terem42/zfs-hetzner-vm/actions/workflows/shellcheck.yml)
+[![shellcheck](https://github.com/hw-rjuzak/zfs-hetzner-vm/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/hw-rjuzak/zfs-hetzner-vm/actions/workflows/shellcheck.yml)
 
 Scripts to install Debian 10, 11, 12 or Ubuntu 18 LTS, 20 LTS, 22 LTS with ZFS root on Hetzner root servers (virtual and dedicated).<br/>
 __WARNING:__ all data on the disk will be destroyed.
@@ -15,37 +15,37 @@ __WARNING:__ all data on the disk will be destroyed.
 Debian 10 minimal setup with SSH server
 
 ````bash
-wget -qO- https://raw.githubusercontent.com/terem42/zfs-hetzner-vm/master/hetzner-debian10-zfs-setup.sh | bash -
+wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-debian10-zfs-setup.sh | bash -
 ````
 
 Debian 11 minimal setup with SSH server
 
 ````bash
-wget -qO- https://raw.githubusercontent.com/terem42/zfs-hetzner-vm/master/hetzner-debian11-zfs-setup.sh | bash -
+wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-debian11-zfs-setup.sh | bash -
 ````
 
 Debian 12 minimal setup with SSH server
 
 ````bash
-wget -qO- https://raw.githubusercontent.com/terem42/zfs-hetzner-vm/master/hetzner-debian12-zfs-setup.sh | bash -
+wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-debian12-zfs-setup.sh | bash -
 ````
 
 Ubuntu 18.04 LTS minimal setup with SSH server
 
 ````bash
-wget -qO- https://raw.githubusercontent.com/terem42/zfs-hetzner-vm/master/hetzner-ubuntu18-zfs-setup.sh | bash -
+wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-ubuntu18-zfs-setup.sh | bash -
 ````
 
 Ubuntu 20 LTS minimal setup with SSH server
 
 ````bash
-wget -qO- https://raw.githubusercontent.com/terem42/zfs-hetzner-vm/master/hetzner-ubuntu20-zfs-setup.sh | bash -
+wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-ubuntu20-zfs-setup.sh | bash -
 ````
 
 Ubuntu 22 LTS minimal setup with SSH server
 
 ````bash
-wget -qO- https://raw.githubusercontent.com/terem42/zfs-hetzner-vm/master/hetzner-ubuntu22-zfs-setup.sh | bash -
+wget -qO- https://raw.githubusercontent.com/hw-rjuzak/zfs-hetzner-vm/master/hetzner-ubuntu22-zfs-setup.sh | bash -
 ````
 
 Answer script questions about desired hostname and ZFS ARC cache size.
