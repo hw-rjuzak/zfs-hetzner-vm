@@ -42,7 +42,7 @@ c_deb_security_repo=https://deb.debian.org/debian-security
 
 c_default_zfs_arc_max_mb=2048
 c_default_swap_gb=8
-c_default_bpool_tweaks="-o ashift=12 -O acltype=posixacl -O compression=lz4    -O relatime=on -O xattr=sa -o autotrim=on -O normalization=formD -o compatibility=grub2"
+c_default_bpool_tweaks="-o ashift=12 -O acltype=posixacl -O compression=lz4    -O relatime=on -O xattr=sa -o autotrim=on -O normalization=formD"
 c_default_rpool_tweaks="-o ashift=12 -O acltype=posixacl -O compression=zstd-9 -O relatime=on -O xattr=sa -o autotrim=on -O normalization=formD -O dnodesize=auto"
 c_default_hostname=terem
 c_zfs_mount_dir=/mnt
@@ -494,6 +494,7 @@ echo "======= installing zfs on rescue system =========="
   echo "zfs-dkms zfs-dkms/note-incompatible-licenses note true" | debconf-set-selections
 #  echo "y" | zfs
 # linux-headers-generic linux-image-generic
+  apt update
   apt install --yes software-properties-common dpkg-dev dkms
   cat > /etc/apt/sources.list.d/bookworm-backports.list << EOF
   deb http://deb.debian.org/debian bookworm-backports main contrib
@@ -546,7 +547,7 @@ echo "======= create zfs pools and datasets =========="
 
 # shellcheck disable=SC2086
 zpool create \
-  $v_bpool_tweaks -O canmount=off -O devices=off \
+  $v_bpool_tweaks -O canmount=off -O devices=off -o compatibility=grub2 \
   -o cachefile=/etc/zpool.cache \
   -O mountpoint=/boot -R $c_zfs_mount_dir -f \
   $v_bpool_name $pools_mirror_option "${bpool_disks_partitions[@]}"
