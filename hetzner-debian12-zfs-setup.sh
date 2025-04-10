@@ -491,7 +491,7 @@ determine_kernel_variant
 clear
 
 echo "======= installing zfs on rescue system =========="
-
+  echo "zfs-dkms zfs-dkms/note-incompatible-licenses note true" | debconf-set-selections
   apt update
   apt install --yes zfs-dkms zfsutils-linux
   zfs --version
