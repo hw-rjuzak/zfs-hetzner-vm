@@ -42,8 +42,8 @@ c_deb_security_repo=https://deb.debian.org/debian-security
 
 c_default_zfs_arc_max_mb=2048
 c_default_swap_gb=8
-c_default_bpool_tweaks="-o ashift=12 -O compression=lz4"
-c_default_rpool_tweaks="-o ashift=12 -O acltype=posixacl -O compression=zstd-9 -O dnodesize=auto -O relatime=on -O xattr=sa -O normalization=formD"
+c_default_bpool_tweaks="-o ashift=12 -O acltype=posixacl -O compression=lz4    -O relatime=on -O xattr=sa -o autotrim=on -O normalization=formD -o compatibility=grub2"
+c_default_rpool_tweaks="-o ashift=12 -O acltype=posixacl -O compression=zstd-9 -O relatime=on -O xattr=sa -o autotrim=on -O normalization=formD -O dnodesize=auto"
 c_default_hostname=terem
 c_zfs_mount_dir=/mnt
 c_log_dir=$(dirname "$(mktemp)")/zfs-hetzner-vm
@@ -514,9 +514,10 @@ echo "======= partitioning the disk =========="
 
   for selected_disk in "${v_selected_disks[@]}"; do
     wipefs --all --force "$selected_disk"
-    sgdisk -a1 -n1:24K:+1M                    -t1:EF02 "$selected_disk" # BIOS
-    sgdisk     -n2:0:+2G                      -t2:8300 "$selected_disk" # Boot pool
-    sgdisk     -n3:0:"$tail_space_parameter"  -t3:8300 "$selected_disk" # Root pool
+    sgdisk -a1 -n1:24K:+1000K                 -t1:EF02 "$selected_disk" # BIOS
+    sgdisk     -n2:1M:+512M                   -t2:EF00 "$selected_disk" # UEFI
+    sgdisk     -n3:0:+2G                      -t3:BF00 "$selected_disk" # Boot pool
+    sgdisk     -n4:0:"$tail_space_parameter"  -t4:BF00 "$selected_disk" # Root pool
   done
 
   udevadm settle
@@ -532,8 +533,8 @@ echo "======= create zfs pools and datasets =========="
   fi
 
   for selected_disk in "${v_selected_disks[@]}"; do
-    rpool_disks_partitions+=("${selected_disk}-part3")
-    bpool_disks_partitions+=("${selected_disk}-part2")
+    rpool_disks_partitions+=("${selected_disk}-part4")
+    bpool_disks_partitions+=("${selected_disk}-part3")
   done
 
   pools_mirror_option=
@@ -714,12 +715,6 @@ if [[ $v_zfs_experimental == "1" ]]; then
 else
   chroot_execute "apt install -t bookworm-backports --yes zfs-initramfs zfs-dkms zfsutils-linux"
 fi
-chroot_execute 'cat << DKMS > /etc/dkms/zfs.conf
-# override for /usr/src/zfs-*/dkms.conf:
-# always rebuild initrd when zfs module has been changed
-# (either by a ZFS update or a new kernel version)
-REMAKE_INITRD="yes"
-DKMS'
 
 echo "======= installing OpenSSH and network tooling =========="
 chroot_execute "apt install --yes openssh-server net-tools"
@@ -742,7 +737,6 @@ chroot_execute "echo options zfs zfs_arc_max=$((v_zfs_arc_max_mb * 1024 * 1024))
 
 echo "======= setting up grub =========="
 chroot_execute "echo 'grub-pc grub-pc/install_devices_empty   boolean true' | debconf-set-selections"
-chroot_execute "DEBIAN_FRONTEND=noninteractive apt install --yes grub-legacy"
 chroot_execute "DEBIAN_FRONTEND=noninteractive apt install --yes grub-pc"
 for disk in ${v_selected_disks[@]}; do
   chroot_execute "grub-install --recheck $disk"
