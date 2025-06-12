@@ -2,7 +2,7 @@
 
 [![shellcheck](https://github.com/hw-rjuzak/zfs-hetzner-vm/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/hw-rjuzak/zfs-hetzner-vm/actions/workflows/shellcheck.yml)
 
-Scripts to install Debian 10, 11, 12 or Ubuntu 18 LTS, 20 LTS, 22 LTS with ZFS root on Hetzner root servers (virtual and dedicated).<br/>
+Scripts to install Debian  12 or Ubuntu 22 LTS with ZFS root on Hetzner servers (virtual and dedicated).<br/>
 __WARNING:__ all data on the disk will be destroyed.
 
 ## How to use:
