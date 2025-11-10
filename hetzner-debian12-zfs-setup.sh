@@ -492,13 +492,14 @@ clear
 echo "======= installing zfs on rescue system =========="
 
   echo "zfs-dkms zfs-dkms/note-incompatible-licenses note true" | debconf-set-selections
-  apt update
   cat > /etc/apt/sources.list.d/$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")-backports.list << EOF
   deb http://deb.debian.org/debian $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")-backports main contrib
   deb-src http://deb.debian.org/debian $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")-backports main contrib
 EOF
 
-  apt install --yes -t $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") zfs-dkms zfsutils-linux
+  apt update
+  rm -f /usr/local/sbin/fsck.zfs /usr/local/sbin/zdb /usr/local/sbin/zed /usr/local/sbin/zfs /usr/local/sbin/zfs_ids_to_path /usr/local/sbin/zgenhostid /usr/local/sbin/zhack /usr/local/sbin/zinject /usr/local/sbin/zpool /usr/local/sbin/zstream /usr/local/sbin/zstreamdump /usr/local/sbin/ztest >/dev/null 2>&1
+  apt install -t $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")-backports zfsutils-linux zfs-zed --no-install-recommends --yes
 
 echo "======= partitioning the disk =========="
 
@@ -517,6 +518,10 @@ echo "======= partitioning the disk =========="
   done
 
   udevadm settle
+
+  for selected_disk in "${v_selected_disks[@]}"; do
+    mkfs.msdos -F 32 -n EFI -i 4d65646f "${selected_disk}-part2"
+  done
 
 echo "======= create zfs pools and datasets =========="
 
@@ -732,11 +737,15 @@ echo "========setting up zfs module parameters========"
 chroot_execute "echo options zfs zfs_arc_max=$((v_zfs_arc_max_mb * 1024 * 1024)) >> /etc/modprobe.d/zfs.conf"
 
 echo "======= setting up grub =========="
+mkdir -p "$c_zfs_mount_dir/boot/efi"
+mount "${v_selected_disks[0]}-part2" "$c_zfs_mount_dir/boot/efi"
+
 chroot_execute "echo 'grub-pc grub-pc/install_devices_empty   boolean true' | debconf-set-selections"
 chroot_execute "DEBIAN_FRONTEND=noninteractive apt install --yes grub-pc"
 for disk in ${v_selected_disks[@]}; do
   chroot_execute "grub-install --recheck $disk"
 done
+umount "$c_zfs_mount_dir/boot/efi"
 
 chroot_execute "sed -i 's/#GRUB_TERMINAL=console/GRUB_TERMINAL=console/g' /etc/default/grub"
 chroot_execute "sed -i 's|GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"net.ifnames=0\"|' /etc/default/grub"
