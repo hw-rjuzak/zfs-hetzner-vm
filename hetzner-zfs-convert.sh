@@ -975,7 +975,6 @@ echo "======= setting up initial system packages =========="
 zfs set devices=off "$v_rpool_name"
 
 echo "======= preparing the jail for chroot =========="
-echo "======= preparing the jail for chroot =========="
 for virtual_fs_dir in proc sys dev; do
   mount --rbind "/$virtual_fs_dir" "$c_zfs_mount_dir/$virtual_fs_dir"
 done
@@ -990,12 +989,13 @@ fi
 
 chroot_execute "apt update"
 
-echo "======= installing latest kernel============="
-# linux-headers-generic linux-image-generic
-chroot_execute "apt install --yes linux-image${v_kernel_variant}-amd64 linux-headers${v_kernel_variant}-amd64 dpkg-dev"
 
 # cryptsetup is not compatible with zfs
 chroot_execute "apt purge cryptsetup* --yes"
+
+echo "======= installing latest kernel============="
+# linux-headers-generic linux-image-generic
+chroot_execute "apt install --yes linux-image${v_kernel_variant}-amd64 linux-headers${v_kernel_variant}-amd64 dpkg-dev"
 
 echo "======= installing zfs packages =========="
 chroot_execute 'echo "zfs-dkms zfs-dkms/note-incompatible-licenses note true" | debconf-set-selections'
